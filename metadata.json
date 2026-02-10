@@ -1,5 +1,0 @@
-{
-  "name": "SwiftLink",
-  "description": "A modern, full-stack URL shortener with dual-mode redirection (Hash & Backend), Firebase integration, and analytics.",
-  "requestFramePermissions": []
-}
