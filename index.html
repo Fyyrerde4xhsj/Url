@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aqua Catch Pro | Arcade</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-top: #a1eafb; --bg-bottom: #28b5e1;
+            --glass-color: rgba(255, 255, 255, 0.4);
+            --water-color: #00d2ff; --ui-accent: #ff4d6d;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+        body { background: var(--bg-bottom); height: 100vh; overflow: hidden; font-family: 'Nunito', sans-serif; }
+
+        #game-container {
+            position: relative; width: 100%; max-width: 500px; height: 100vh; margin: 0 auto;
+            background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+            box-shadow: 0 0 50px rgba(0,0,0,0.2);
+        }
+
+        canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+        /* UI Elements */
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 100; text-align: center; backdrop-filter: blur(5px);
+        }
+
+        .glassy-card {
+            background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(15px);
+            border-radius: 35px; padding: 40px 20px; border: 2px solid rgba(255, 255, 255, 0.4);
+            width: 85%; box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+
+        h1 { font-family: 'Fredoka One', cursive; color: white; font-size: 3.5rem; text-shadow: 0 5px 15px rgba(0,0,0,0.15); margin-bottom: 10px; }
+        
+        .btn {
+            background: white; color: #28b5e1; border: none; padding: 16px 35px;
+            border-radius: 50px; font-size: 1.4rem; font-weight: bold; cursor: pointer;
+            font-family: 'Fredoka One', cursive; margin: 8px; transition: 0.2s;
+            box-shadow: 0 6px 0 #1a9bc3; position: relative; top: 0;
+        }
+        .btn:active { top: 4px; box-shadow: 0 2px 0 #1a9bc3; }
+        .btn-revive { background: #ffd700; color: #856404; box-shadow: 0 6px 0 #d4af37; }
+
+        #hud {
+            position: absolute; top: 20px; width: 100%; padding: 0 20px;
+            display: flex; justify-content: space-between; align-items: flex-start;
+            z-index: 50; color: white; pointer-events: none;
+        }
+
+        .mute-btn {
+            position: absolute; bottom: 20px; left: 20px; z-index: 110;
+            background: rgba(255,255,255,0.3); border: none; width: 50px; height: 50px;
+            border-radius: 50%; font-size: 1.5rem; cursor: pointer; color: white;
+        }
+
+        /* Mock Ad System Styles */
+        #ad-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 200; display: none; color: white;
+            flex-direction: column; justify-content: center; align-items: center;
+        }
+
+        .ad-timer { position: absolute; top: 20px; right: 20px; font-size: 1rem; color: #aaa; }
+        .ad-close { position: absolute; top: 20px; right: 20px; font-size: 1.5rem; display: none; cursor: pointer; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="hud">
+        <div style="pointer-events: auto;">
+            <div style="font-size: 1.8rem; font-weight: 900;">💧 <span id="score-val">0</span></div>
+            <div style="font-size: 0.9rem; opacity: 0.8; font-weight: bold;">LEVEL <span id="level-val">1</span></div>
+        </div>
+        <div id="heart-container" style="font-size: 1.5rem;">❤️❤️❤️</div>
+    </div>
+
+    <button class="mute-btn" id="mute-btn" onclick="toggleMute()">🔊</button>
+
+    <!-- Home Screen -->
+    <div id="home-screen" class="overlay">
+        <div class="glassy-card">
+            <h1>AQUA<br>CATCH</h1>
+            <p style="color: white; margin-bottom: 25px;">Stay Hydrated!</p>
+            <button class="btn" onclick="startGame()">PLAY</button>
+            <p style="color: white; font-size: 0.8rem; margin-top: 15px;">High Score: <span id="high-score">0</span></p>
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="game-over-screen" class="overlay hidden">
+        <div class="glassy-card">
+            <h1 id="status-title" style="font-size: 2.2rem;">CRACKED!</h1>
+            <p style="color: white;">Score: <span id="final-score">0</span></p>
+            <div style="margin: 20px 0;">
+                <button class="btn btn-revive" id="revive-btn" onclick="showRewardedAd()">📺 REVIVE</button>
+                <button class="btn" onclick="showInterstitialThenStart()">RETRY</button>
+            </div>
+            <button style="background:none; border:none; color:white; text-decoration:underline;" onclick="goHome()">Menu</button>
+        </div>
+    </div>
+
+    <!-- Ad Layer -->
+    <div id="ad-layer">
+        <div class="ad-timer" id="ad-timer">Ad ends in 5...</div>
+        <div class="ad-close" id="ad-close" onclick="closeAd()">✕ Close</div>
+        <div style="text-align:center">
+            <div style="width:250px; height:250px; background:#333; margin-bottom:20px; display:flex; align-items:center; justify-content:center; border-radius:15px">
+                <span id="ad-type-text">INTERSTITIAL AD</span>
+            </div>
+            <p id="ad-status">Sponsored Content</p>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+</div>
+
+<script>
+    /** AUDIO SYSTEM - WEB AUDIO API **/
+    class SoundEngine {
+        constructor() {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            this.muted = false;
+            this.bgMusic = null;
+        }
+
+        async playSfx(type) {
+            if (this.muted) return;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+
+            const now = this.ctx.currentTime;
+
+            if (type === 'catch') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(); osc.stop(now + 0.1);
+            } else if (type === 'miss') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.linearRampToValueAtTime(50, now + 0.2);
+                gain.gain.setValueAtTime(0.5, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+                osc.start(); osc.stop(now + 0.2);
+            } else if (type === 'bonus') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.start(); osc.stop(now + 0.3);
+            } else if (type === 'gameover') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.linearRampToValueAtTime(100, now + 0.5);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.5);
+                osc.start(); osc.stop(now + 0.5);
+            }
+        }
+
+        startMusic() {
+            if (this.bgMusic) return;
+            // Simple synth loop for background
+            this.bgMusic = this.ctx.createOscillator();
+            const musicGain = this.ctx.createGain();
+            musicGain.gain.value = this.muted ? 0 : 0.15;
+            this.bgMusic.type = 'sine';
+            this.bgMusic.frequency.value = 110; 
+            this.bgMusic.connect(musicGain);
+            musicGain.connect(this.ctx.destination);
+            this.bgMusic.start();
+            this.musicGain = musicGain;
+        }
+
+        toggleMute() {
+            this.muted = !this.muted;
+            if (this.musicGain) this.musicGain.gain.value = this.muted ? 0 : 0.15;
+            return this.muted;
+        }
+    }
+
+    const sound = new SoundEngine();
+
+    /** GAME LOGIC **/
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreVal = document.getElementById('score-val');
+    const levelVal = document.getElementById('level-val');
+    const heartContainer = document.getElementById('heart-container');
+    
+    let state = {
+        score: 0, lives: 3, level: 1, 
+        gameActive: false, drops: [], particles: [],
+        highScore: localStorage.getItem('aquaCatchHS') || 0,
+        shake: 0, lastTime: 0, spawnTimer: 0,
+        revived: false // Only allow 1 revive per game
+    };
+
+    const player = {
+        width: 80, height: 100, x: 0, y: 0, targetX: 0, fill: 0,
+        draw() {
+            ctx.save();
+            ctx.translate(this.x + this.width/2, this.y + this.height/2);
+            if (state.shake > 0) {
+                ctx.translate(Math.random()*state.shake - state.shake/2, 0);
+                state.shake *= 0.9;
+            }
+            // Glass
+            ctx.strokeStyle = 'white'; ctx.lineWidth = 4; ctx.beginPath();
+            ctx.moveTo(-35, -50); ctx.lineTo(-25, 50); ctx.lineTo(25, 50); ctx.lineTo(35, -50);
+            ctx.stroke();
+            // Water
+            ctx.clip(); ctx.fillStyle = '#00d2ff';
+            let fH = (this.fill / 100) * 100;
+            ctx.fillRect(-50, 50 - fH, 100, fH);
+            ctx.restore();
+        }
+    };
+
+    function resize() {
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+        player.y = canvas.height - 130;
+        player.x = canvas.width/2 - 40;
+        player.targetX = player.x;
+        document.getElementById('high-score').innerText = state.highScore;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Controls
+    const handleMove = (e) => {
+        let x = e.touches ? e.touches[0].clientX : e.clientX;
+        player.targetX = x - player.width/2;
+    };
+    canvas.addEventListener('mousemove', handleMove);
+    canvas.addEventListener('touchmove', (e) => { e.preventDefault(); handleMove(e); }, {passive:false});
+
+    class Drop {
+        constructor() {
+            this.r = 12 + Math.random()*8;
+            this.x = Math.random()*(canvas.width - this.r*2) + this.r;
+            this.y = -20;
+            this.speed = (3 + Math.random()*2) * (1 + state.level * 0.1);
+            let rnd = Math.random();
+            this.type = rnd > 0.9 ? 'BONUS' : (rnd < 0.1 && state.level > 2 ? 'ICE' : 'WATER');
+        }
+        update() { this.y += this.speed; }
+        draw() {
+            ctx.beginPath();
+            ctx.fillStyle = this.type === 'WATER' ? '#00d2ff' : (this.type === 'ICE' ? '#eee' : '#ffd700');
+            ctx.arc(this.x, this.y, this.r, 0, Math.PI*2);
+            ctx.fill();
+        }
+    }
+
+    function startGame() {
+        sound.startMusic();
+        state.score = 0; state.lives = 3; state.level = 1; state.drops = []; state.revived = false;
+        player.fill = 0; state.gameActive = true;
+        
+        document.getElementById('home-screen').classList.add('hidden');
+        document.getElementById('game-over-screen').classList.add('hidden');
+        document.getElementById('hud').classList.remove('hidden');
+        document.getElementById('revive-btn').classList.remove('hidden');
+        updateUI();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function updateUI() {
+        scoreVal.innerText = state.score;
+        levelVal.innerText = state.level;
+        heartContainer.innerText = "❤️".repeat(Math.max(0, state.lives));
+    }
+
+    function gameLoop() {
+        if (!state.gameActive) return;
+        ctx.clearRect(0,0,canvas.width, canvas.height);
+        
+        player.x += (player.targetX - player.x) * 0.2;
+        player.draw();
+
+        if (Date.now() - state.spawnTimer > Math.max(400, 1000 - state.level*100)) {
+            state.drops.push(new Drop());
+            state.spawnTimer = Date.now();
+        }
+
+        for (let i = state.drops.length-1; i>=0; i--) {
+            let d = state.drops[i];
+            d.update(); d.draw();
+
+            // Catch
+            if (d.y + d.r > player.y && d.x > player.x && d.x < player.x + player.width) {
+                if (d.type === 'WATER') { 
+                    state.score += 10; player.fill = Math.min(100, player.fill+5); 
+                    sound.playSfx('catch');
+                }
+                else if (d.type === 'BONUS') { 
+                    state.score += 50; sound.playSfx('bonus'); 
+                }
+                else { 
+                    state.lives--; state.shake = 10; sound.playSfx('miss'); 
+                }
+                
+                if (Math.floor(state.score/200)+1 > state.level) state.level++;
+                state.drops.splice(i, 1); updateUI();
+            } 
+            // Miss
+            else if (d.y > canvas.height) {
+                if (d.type === 'WATER') { 
+                    state.lives--; state.shake = 15; sound.playSfx('miss'); 
+                }
+                state.drops.splice(i, 1); updateUI();
+            }
+
+            if (state.lives <= 0) gameOver();
+        }
+        requestAnimationFrame(gameLoop);
+    }
+
+    function gameOver() {
+        state.gameActive = false;
+        sound.playSfx('gameover');
+        if (state.score > state.highScore) {
+            state.highScore = state.score;
+            localStorage.setItem('aquaCatchHS', state.score);
+        }
+        document.getElementById('final-score').innerText = state.score;
+        document.getElementById('game-over-screen').classList.remove('hidden');
+        if (state.revived) document.getElementById('revive-btn').classList.add('hidden');
+    }
+
+    /** MOCK AD SYSTEM **/
+    let adCallback = null;
+
+    function showInterstitialThenStart() {
+        showAd("INTERSTITIAL", () => {
+            startGame();
+        });
+    }
+
+    function showRewardedAd() {
+        showAd("REWARDED VIDEO", () => {
+            state.lives = 1;
+            state.revived = true;
+            state.gameActive = true;
+            document.getElementById('game-over-screen').classList.add('hidden');
+            updateUI();
+            requestAnimationFrame(gameLoop);
+        });
+    }
+
+    function showAd(type, callback) {
+        const adLayer = document.getElementById('ad-layer');
+        const adTimer = document.getElementById('ad-timer');
+        const adClose = document.getElementById('ad-close');
+        document.getElementById('ad-type-text').innerText = type;
+        
+        adLayer.style.display = 'flex';
+        adClose.style.display = 'none';
+        adCallback = callback;
+
+        let count = 3;
+        adTimer.innerText = `Ad ends in ${count}...`;
+        
+        const interval = setInterval(() => {
+            count--;
+            if (count <= 0) {
+                clearInterval(interval);
+                adTimer.style.display = 'none';
+                adClose.style.display = 'block';
+            } else {
+                adTimer.innerText = `Ad ends in ${count}...`;
+            }
+        }, 1000);
+    }
+
+    function closeAd() {
+        document.getElementById('ad-layer').style.display = 'none';
+        document.getElementById('ad-timer').style.display = 'block';
+        if (adCallback) adCallback();
+    }
+
+    function toggleMute() {
+        const isMuted = sound.toggleMute();
+        document.getElementById('mute-btn').innerText = isMuted ? '🔇' : '🔊';
+    }
+
+    function goHome() {
+        document.getElementById('game-over-screen').classList.add('hidden');
+        document.getElementById('home-screen').classList.remove('hidden');
+        document.getElementById('hud').classList.add('hidden');
+        resize();
+    }
+</script>
+</body>
+</html>
